@@ -9,6 +9,8 @@ class Game2048 {
   List<List<int>> grid;
   int score;
   bool gameOver;
+  List<(int, int)> lastMergedAt = [];
+  (int, int)? lastSpawnedAt;
 
   Game2048()
       : grid = List.generate(size, (_) => List.filled(size, 0)),
@@ -22,6 +24,8 @@ class Game2048 {
     grid = List.generate(size, (_) => List.filled(size, 0));
     score = 0;
     gameOver = false;
+    lastMergedAt = [];
+    lastSpawnedAt = null;
     _spawnTile();
     _spawnTile();
   }
@@ -31,6 +35,8 @@ class Game2048 {
 
     final before = _copyGrid();
     var gained = 0;
+    lastMergedAt = [];
+    lastSpawnedAt = null;
 
     switch (direction) {
       case Direction.left:
@@ -38,6 +44,9 @@ class Game2048 {
           final merged = _mergeLine(grid[r]);
           gained += merged.$2;
           grid[r] = merged.$1;
+          for (final col in merged.$3) {
+            lastMergedAt.add((r, col));
+          }
         }
       case Direction.right:
         for (var r = 0; r < size; r++) {
@@ -45,6 +54,9 @@ class Game2048 {
           final merged = _mergeLine(reversed);
           gained += merged.$2;
           grid[r] = merged.$1.reversed.toList();
+          for (final col in merged.$3) {
+            lastMergedAt.add((r, size - 1 - col));
+          }
         }
       case Direction.up:
         for (var c = 0; c < size; c++) {
@@ -54,6 +66,9 @@ class Game2048 {
           for (var r = 0; r < size; r++) {
             grid[r][c] = merged.$1[r];
           }
+          for (final row in merged.$3) {
+            lastMergedAt.add((row, c));
+          }
         }
       case Direction.down:
         for (var c = 0; c < size; c++) {
@@ -62,6 +77,9 @@ class Game2048 {
           gained += merged.$2;
           for (var r = 0; r < size; r++) {
             grid[size - 1 - r][c] = merged.$1[r];
+          }
+          for (final row in merged.$3) {
+            lastMergedAt.add((size - 1 - row, c));
           }
         }
     }
@@ -75,22 +93,28 @@ class Game2048 {
     return false;
   }
 
-  (List<int>, int) _mergeLine(List<int> line) {
+  (List<int>, int, List<int>) _mergeLine(List<int> line) {
     final nums = line.where((n) => n != 0).toList();
     var gained = 0;
+    final mergeIndices = <int>[];
+    final merged = <int>[];
 
-    for (var i = 0; i < nums.length - 1; i++) {
-      if (nums[i] == nums[i + 1]) {
-        nums[i] *= 2;
-        gained += nums[i];
-        nums.removeAt(i + 1);
+    for (var i = 0; i < nums.length; i++) {
+      if (i + 1 < nums.length && nums[i] == nums[i + 1]) {
+        final v = nums[i] * 2;
+        merged.add(v);
+        gained += v;
+        mergeIndices.add(merged.length - 1);
+        i++;
+      } else {
+        merged.add(nums[i]);
       }
     }
 
-    while (nums.length < size) {
-      nums.add(0);
+    while (merged.length < size) {
+      merged.add(0);
     }
-    return (nums, gained);
+    return (merged, gained, mergeIndices);
   }
 
   void _spawnTile() {
@@ -104,6 +128,7 @@ class Game2048 {
 
     final (r, c) = empty[_random.nextInt(empty.length)];
     grid[r][c] = _random.nextDouble() < 0.9 ? 2 : 4;
+    lastSpawnedAt = (r, c);
   }
 
   bool _canMove() {

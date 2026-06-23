@@ -6,8 +6,8 @@ import 'package:dart2048/main.dart';
 void main() {
   testWidgets('2048 app loads', (WidgetTester tester) async {
     await tester.pumpWidget(const GameApp());
-    expect(find.text('2048'), findsOneWidget);
-    expect(find.text('得分'), findsOneWidget);
+    expect(find.text('进化 2048'), findsOneWidget);
+    expect(find.text('进化度'), findsOneWidget);
   });
 
   test('merge line works', () {

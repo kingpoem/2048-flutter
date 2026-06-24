@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../game/ai2048.dart';
 import '../game/game2048.dart';
 import 'cell_fusion_effect.dart';
 import 'evolution_theme.dart';
@@ -18,6 +20,8 @@ class _GamePageState extends State<GamePage> {
   late Game2048 _game;
   Set<(int, int)> _mergingCells = {};
   (int, int)? _spawningCell;
+  bool _aiRunning = false;
+  bool _aiThinking = false;
 
   @override
   void initState() {
@@ -50,11 +54,47 @@ class _GamePageState extends State<GamePage> {
   }
 
   void _newGame() {
+    _aiRunning = false;
     setState(() {
       _game.reset();
       _mergingCells = {};
       _spawningCell = null;
+      _aiThinking = false;
     });
+  }
+
+  void _toggleAi() {
+    if (_aiRunning) {
+      setState(() => _aiRunning = false);
+      return;
+    }
+    if (_game.gameOver) return;
+    setState(() => _aiRunning = true);
+    _runAiStep();
+  }
+
+  Future<void> _runAiStep() async {
+    if (!_aiRunning || _game.gameOver || !mounted) {
+      if (mounted) setState(() => _aiRunning = false);
+      return;
+    }
+
+    setState(() => _aiThinking = true);
+    final grid = [for (final row in _game.grid) List<int>.from(row)];
+    final direction = await compute(findBestDirectionForGrid, grid);
+    if (!mounted || !_aiRunning) return;
+
+    setState(() => _aiThinking = false);
+    if (direction == null) {
+      setState(() => _aiRunning = false);
+      return;
+    }
+
+    _applyMove(direction);
+    if (!_aiRunning || _game.gameOver) return;
+
+    await Future.delayed(const Duration(milliseconds: 180));
+    if (mounted && _aiRunning) _runAiStep();
   }
 
   KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
@@ -129,7 +169,12 @@ class _GamePageState extends State<GamePage> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                        _Header(onNewGame: _newGame),
+                        _Header(
+                          onNewGame: _newGame,
+                          aiRunning: _aiRunning,
+                          aiThinking: _aiThinking,
+                          onToggleAi: _toggleAi,
+                        ),
                         const SizedBox(height: 18),
                         _ScorePanel(
                           score: _game.score,
@@ -216,9 +261,17 @@ class _GamePageState extends State<GamePage> {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.onNewGame});
+  const _Header({
+    required this.onNewGame,
+    required this.aiRunning,
+    required this.aiThinking,
+    required this.onToggleAi,
+  });
 
   final VoidCallback onNewGame;
+  final bool aiRunning;
+  final bool aiThinking;
+  final VoidCallback onToggleAi;
 
   @override
   Widget build(BuildContext context) {
@@ -248,6 +301,22 @@ class _Header extends StatelessWidget {
           ],
         ),
         const Spacer(),
+        FilledButton.icon(
+          onPressed: onToggleAi,
+          style: FilledButton.styleFrom(
+            backgroundColor: aiRunning
+                ? const Color(0xFF5C2E2E)
+                : EvolutionTheme.accent.withValues(alpha: 0.18),
+            foregroundColor: aiRunning ? const Color(0xFFFFAB91) : EvolutionTheme.accent,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          ),
+          icon: Icon(
+            aiThinking ? Icons.hourglass_top_rounded : Icons.smart_toy_rounded,
+            size: 18,
+          ),
+          label: Text(aiRunning ? '停止 AI' : 'AI 托管'),
+        ),
+        const SizedBox(width: 8),
         FilledButton.icon(
           onPressed: onNewGame,
           style: FilledButton.styleFrom(
